@@ -82,45 +82,56 @@ export default function App() {
     localStorage.setItem('webscraper_history', JSON.stringify(updated));
   };
 
-  const handleSelectHistory = (item: HistoryItem) => {
-    setData(item.data);
-    setError(null);
-  };
-
   const handleScrape = async (url: string, rawHtml: string, options: ScrapeOptions) => {
     setIsLoading(true);
     setError(null);
 
-    try {
-      const response = await fetch('/api/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url,
-          rawHtml,
-          options,
-        }),
-      });
+    let scrapedDataResult: ScrapedData | null = null;
+    const isGitHubPages = window.location.hostname.endsWith('github.io');
 
-      const resData = await response.json();
-      if (!resData.success) {
-        throw new Error(resData.error || 'Cào dữ liệu thất bại.');
+    // Nếu không phải GitHub Pages thì mới gọi backend
+    if (!isGitHubPages) {
+      try {
+        const response = await fetch('/api/scrape', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, rawHtml, options }),
+        });
+        const contentType = response.headers.get('content-type') || '';
+        if (response.ok && contentType.includes('application/json')) {
+          const resData = await response.json();
+          if (resData.success && resData.data) {
+            scrapedDataResult = resData.data;
+          }
+        }
+      } catch (err) {
+        console.warn('Backend không khả dụng, chuyển sang Client Scraper...');
       }
+    }
 
-      setData(resData.data);
-      saveToHistory(resData.data);
+    // Khi chạy trên GitHub Pages: tự động cào trực tiếp trên trình duyệt
+    if (!scrapedDataResult) {
+      try {
+        setIsStaticMode(true);
+        scrapedDataResult = await scrapeOnClient(url, rawHtml, options);
+      } catch (clientErr: any) {
+        setError(clientErr.message || 'Không thể cào dữ liệu từ trang này.');
+        setIsLoading(false);
+        return;
+      }
+    }
 
-      // If tables found, user can explore tables, otherwise default to AI extraction
-      if (resData.data.tables && resData.data.tables.length > 0) {
+    if (scrapedDataResult) {
+      setData(scrapedDataResult);
+      saveToHistory(scrapedDataResult);
+      if (scrapedDataResult.tables && scrapedDataResult.tables.length > 0) {
         setActiveTab('tables');
       } else {
-        setActiveTab('ai-extract');
+        setActiveTab('markdown');
       }
-    } catch (err: any) {
-      setError(err.message || 'Đã có lỗi xảy ra trong quá trình cào trang web.');
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
+  };
   };
 
   const TABS = [
