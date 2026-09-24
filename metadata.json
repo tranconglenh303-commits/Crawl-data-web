@@ -1,0 +1,6 @@
+{
+  "name": "WebScraper AI - Trình Cào Dữ Liệu Web Toàn Diện",
+  "description": "Công cụ cào và trích xuất toàn bộ dữ liệu từ bất kỳ website nào qua URL: nội dung văn bản, bảng biểu, hình ảnh, liên kết, metadata và trích xuất cấu trúc thông minh bằng AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
