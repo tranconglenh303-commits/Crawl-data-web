@@ -29,6 +29,7 @@ import { CustomSelectorsTab } from './components/CustomSelectorsTab';
 import { AiChatTab } from './components/AiChatTab';
 import { HistoryDrawer } from './components/HistoryDrawer';
 import { ScrapedData, ScrapeOptions, HistoryItem } from './types/scraper';
+import { scrapeOnClient } from './utils/clientScraper';
 
 export default function App() {
   const [data, setData] = useState<ScrapedData | null>(null);
@@ -37,6 +38,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('ai-extract');
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [isStaticMode, setIsStaticMode] = useState<boolean>(false);
 
   // Load history from localStorage on startup
   useEffect(() => {
@@ -82,6 +84,11 @@ export default function App() {
     localStorage.setItem('webscraper_history', JSON.stringify(updated));
   };
 
+  const handleSelectHistory = (item: HistoryItem) => {
+    setData(item.data);
+    setError(null);
+  };
+
   const handleScrape = async (url: string, rawHtml: string, options: ScrapeOptions) => {
     setIsLoading(true);
     setError(null);
@@ -89,14 +96,19 @@ export default function App() {
     let scrapedDataResult: ScrapedData | null = null;
     const isGitHubPages = window.location.hostname.endsWith('github.io');
 
-    // Nếu không phải GitHub Pages thì mới gọi backend
+    // 1. Nếu không phải GitHub Pages, thử gọi backend Node.js (/api/scrape)
     if (!isGitHubPages) {
       try {
         const response = await fetch('/api/scrape', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, rawHtml, options }),
+          body: JSON.stringify({
+            url,
+            rawHtml,
+            options,
+          }),
         });
+
         const contentType = response.headers.get('content-type') || '';
         if (response.ok && contentType.includes('application/json')) {
           const resData = await response.json();
@@ -104,12 +116,12 @@ export default function App() {
             scrapedDataResult = resData.data;
           }
         }
-      } catch (err) {
-        console.warn('Backend không khả dụng, chuyển sang Client Scraper...');
+      } catch (err: any) {
+        console.warn('Backend /api/scrape không khả dụng, chuyển sang chế độ Client Scraper...');
       }
     }
 
-    // Khi chạy trên GitHub Pages: tự động cào trực tiếp trên trình duyệt
+    // 2. Chạy trên GitHub Pages hoặc khi Backend không khả dụng: Dùng Client Scraper
     if (!scrapedDataResult) {
       try {
         setIsStaticMode(true);
@@ -124,14 +136,14 @@ export default function App() {
     if (scrapedDataResult) {
       setData(scrapedDataResult);
       saveToHistory(scrapedDataResult);
+
       if (scrapedDataResult.tables && scrapedDataResult.tables.length > 0) {
         setActiveTab('tables');
       } else {
-        setActiveTab('markdown');
+        setActiveTab('ai-extract');
       }
     }
     setIsLoading(false);
-  };
   };
 
   const TABS = [
